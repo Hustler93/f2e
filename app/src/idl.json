@@ -1,0 +1,102 @@
+{
+  "version": "0.1.0",
+  "name": "gym_chain",
+  "instructions": [
+    {
+      "name": "initializeUser",
+      "accounts": [
+        { "name": "userProfile", "isMut": true, "isSigner": false },
+        { "name": "user", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "username", "type": "string" },
+        { "name": "defaultRestTime", "type": "u16" }
+      ]
+    },
+    {
+      "name": "startSession",
+      "accounts": [
+        { "name": "session", "isMut": true, "isSigner": true },
+        { "name": "userProfile", "isMut": true, "isSigner": false },
+        { "name": "user", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "addSet",
+      "accounts": [
+        { "name": "exerciseSet", "isMut": true, "isSigner": true },
+        { "name": "session", "isMut": true, "isSigner": false },
+        { "name": "userProfile", "isMut": true, "isSigner": false },
+        { "name": "owner", "isMut": false, "isSigner": false },
+        { "name": "user", "isMut": true, "isSigner": true },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "exerciseName", "type": "string" },
+        { "name": "weightKg", "type": "u16" },
+        { "name": "reps", "type": "u16" },
+        { "name": "durationSeconds", "type": "u16" }
+      ]
+    },
+    {
+      "name": "completeSession",
+      "accounts": [
+        { "name": "session", "isMut": true, "isSigner": false },
+        { "name": "owner", "isMut": false, "isSigner": true }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "userProfile",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "owner", "type": "publicKey" },
+          { "name": "username", "type": "string" },
+          { "name": "totalSessions", "type": "u32" },
+          { "name": "totalSets", "type": "u32" },
+          { "name": "totalVolume", "type": "u64" },
+          { "name": "defaultRestTime", "type": "u16" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "session",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "owner", "type": "publicKey" },
+          { "name": "userProfile", "type": "publicKey" },
+          { "name": "startedAt", "type": "i64" },
+          { "name": "isCompleted", "type": "bool" },
+          { "name": "totalSets", "type": "u32" },
+          { "name": "totalVolume", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "exerciseSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "owner", "type": "publicKey" },
+          { "name": "session", "type": "publicKey" },
+          { "name": "exerciseName", "type": "string" },
+          { "name": "weightKg", "type": "u16" },
+          { "name": "reps", "type": "u16" },
+          { "name": "durationSeconds", "type": "u16" },
+          { "name": "createdAt", "type": "i64" }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "address": "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+  }
+}

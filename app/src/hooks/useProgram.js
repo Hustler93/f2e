@@ -19,7 +19,13 @@ export function useProgram() {
 
   const program = useMemo(() => {
     if (!provider) return null;
-    return new Program(idl, PROGRAM_ID, provider);
+
+    try {
+      return new Program(idl, PROGRAM_ID, provider);
+    } catch (err) {
+      console.error('프로그램 초기화 실패:', err);
+      return null;
+    }
   }, [provider]);
 
   return { program, provider, wallet };

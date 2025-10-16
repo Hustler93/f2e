@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Dumbbell, Play, Check, Loader } from 'lucide-react';
@@ -36,7 +36,15 @@ export default function WorkoutApp() {
     if (connected && publicKey) {
       loadUserProfile();
     }
-  }, [connected, publicKey]);
+  }, [connected, loadUserProfile, publicKey]);
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {
+        // ignore - permissions can be denied without breaking the UI
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (isSetActive || isResting) {
@@ -61,14 +69,14 @@ export default function WorkoutApp() {
     }
   }, [timer, isResting, restTime]);
 
-  const loadUserProfile = async () => {
+  const loadUserProfile = useCallback(async () => {
     try {
       const profile = await getUserProfile();
       setUserProfile(profile);
     } catch (err) {
       console.error('프로필 로드 실패:', err);
     }
-  };
+  }, [getUserProfile]);
 
   const handleCreateProfile = async () => {
     const username = prompt('사용자 이름을 입력하세요:');
@@ -99,6 +107,7 @@ export default function WorkoutApp() {
       alert('운동, 무게, 횟수를 모두 입력해주세요');
       return;
     }
+
     setIsSetActive(true);
     setTimer(0);
   };
@@ -107,27 +116,34 @@ export default function WorkoutApp() {
     try {
       const duration = timer;
       
+      const weight = Number.parseInt(currentWeight, 10);
+      const reps = Number.parseInt(currentReps, 10);
+
+      if (!sessionPubkey) {
+        throw new Error('세션이 시작되지 않았습니다. 다시 시도해주세요.');
+      }
+
       await addSet(
         sessionPubkey,
         currentExercise,
-        parseInt(currentWeight),
-        parseInt(currentReps),
+        weight,
+        reps,
         duration
       );
 
       const newSet = {
         id: Date.now(),
         exercise: currentExercise,
-        weight: parseInt(currentWeight),
-        reps: parseInt(currentReps),
+        weight,
+        reps,
         duration: duration,
-        timestamp: new Date().toLocaleTimeString('ko-KR', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
+        timestamp: new Date().toLocaleTimeString('ko-KR', {
+          hour: '2-digit',
+          minute: '2-digit'
         })
       };
 
-      setSessionSets([...sessionSets, newSet]);
+      setSessionSets(prev => [...prev, newSet]);
       setIsSetActive(false);
       setIsResting(true);
       setTimer(0);
@@ -198,130 +214,125 @@ export default function WorkoutApp() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const calculateTodayStats = () => {
-    const totalVolume = sessionSets.reduce((sum, set) => 
+  const stats = useMemo(() => {
+    const totalVolume = sessionSets.reduce((sum, set) =>
       sum + (set.weight * set.reps), 0
     );
     const exerciseCount = new Set(sessionSets.map(s => s.exercise)).size;
     return { totalSets: sessionSets.length, totalVolume, exerciseCount };
-  };
+  }, [sessionSets]);
 
-  const stats = calculateTodayStats();
-    // 지갑 미연결
-    if (!connected) {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-24 h-24 bg-purple-600 rounded-full mb-6">
-                <Dumbbell size={48} className="text-white" />
-              </div>
-              <h1 className="text-4xl font-bold text-white mb-4">GymChain</h1>
-              <p className="text-purple-300 mb-8">운동하고 보상받자</p>
-              <WalletMultiButton />
-            </div>
+  if (!connected) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-24 h-24 bg-purple-600 rounded-full mb-6">
+            <Dumbbell size={48} className="text-white" />
           </div>
-        );
-      }
-    
-      // 프로필 미생성
-      if (!userProfile) {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-            <div className="max-w-md mx-auto p-6">
-              <div className="absolute top-4 right-4">
-                <WalletMultiButton />
-              </div>
-              
-              <div className="text-center pt-20">
-                <div className="inline-flex items-center justify-center w-24 h-24 bg-purple-600 rounded-full mb-6">
-                  <Dumbbell size={48} className="text-white" />
-                </div>
-                <h1 className="text-4xl font-bold text-white mb-4">환영합니다!</h1>
-                <p className="text-purple-300 mb-8">
-                  프로필을 생성하고 운동을 시작하세요
-                </p>
-                
-                <button
-                  onClick={handleCreateProfile}
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-purple-500/50 transition-all transform hover:scale-105 disabled:opacity-50"
-                >
-                  {loading ? <Loader className="inline animate-spin" /> : '프로필 생성하기'}
-                </button>
-              </div>
-            </div>
+          <h1 className="text-4xl font-bold text-white mb-4">GymChain</h1>
+          <p className="text-purple-300 mb-8">운동하고 보상받자</p>
+          <WalletMultiButton />
+        </div>
+      </div>
+    );
+  }
+
+  if (!userProfile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="max-w-md mx-auto p-6">
+          <div className="absolute top-4 right-4">
+            <WalletMultiButton />
           </div>
-        );
-      }
-    
-      // 홈 화면
-      if (currentView === 'home') {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-            <div className="max-w-md mx-auto p-6">
-              <div className="absolute top-4 right-4">
-                <WalletMultiButton />
-              </div>
-    
-              <div className="text-center mb-8 pt-8">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-purple-600 rounded-full mb-4">
-                  <Dumbbell size={40} className="text-white" />
-                </div>
-                <h1 className="text-4xl font-bold text-white mb-2">GymChain</h1>
-                <p className="text-purple-300">안녕하세요, {userProfile.username}님!</p>
-              </div>
-    
-              <div className="space-y-4">
-                <button
-                  onClick={handleStartWorkout}
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-6 rounded-2xl font-bold text-xl shadow-lg hover:shadow-purple-500/50 transition-all transform hover:scale-105 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <Loader className="inline animate-spin" />
-                  ) : (
-                    <>
-                      <Play className="inline mr-2" size={24} />
-                      운동 시작하기
-                    </>
-                  )}
-                </button>
-              </div>
-    
-              <div className="mt-8 grid grid-cols-3 gap-4">
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <div className="text-purple-300 text-sm mb-1">총 세션</div>
-                  <div className="text-white text-2xl font-bold">
-                    {userProfile.totalSessions.toString()}
-                  </div>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <div className="text-purple-300 text-sm mb-1">총 세트</div>
-                  <div className="text-white text-2xl font-bold">
-                    {userProfile.totalSets.toString()}
-                  </div>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-                  <div className="text-purple-300 text-sm mb-1">총 볼륨</div>
-                  <div className="text-white text-xl font-bold">
-                    {(userProfile.totalVolume.toNumber() / 1000).toFixed(1)}T
-                  </div>
-                </div>
-              </div>
-    
-              {error && (
-                <div className="mt-4 p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-300 text-sm">
-                  {error}
-                </div>
+
+          <div className="text-center pt-20">
+            <div className="inline-flex items-center justify-center w-24 h-24 bg-purple-600 rounded-full mb-6">
+              <Dumbbell size={48} className="text-white" />
+            </div>
+            <h1 className="text-4xl font-bold text-white mb-4">환영합니다!</h1>
+            <p className="text-purple-300 mb-8">
+              프로필을 생성하고 운동을 시작하세요
+            </p>
+
+            <button
+              onClick={handleCreateProfile}
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-purple-500/50 transition-all transform hover:scale-105 disabled:opacity-50"
+            >
+              {loading ? <Loader className="inline animate-spin" /> : '프로필 생성하기'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'home') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="max-w-md mx-auto p-6">
+          <div className="absolute top-4 right-4">
+            <WalletMultiButton />
+          </div>
+
+          <div className="text-center mb-8 pt-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-purple-600 rounded-full mb-4">
+              <Dumbbell size={40} className="text-white" />
+            </div>
+            <h1 className="text-4xl font-bold text-white mb-2">GymChain</h1>
+            <p className="text-purple-300">안녕하세요, {userProfile.username}님!</p>
+          </div>
+
+          <div className="space-y-4">
+            <button
+              onClick={handleStartWorkout}
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-6 rounded-2xl font-bold text-xl shadow-lg hover:shadow-purple-500/50 transition-all transform hover:scale-105 disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader className="inline animate-spin" />
+              ) : (
+                <>
+                  <Play className="inline mr-2" size={24} />
+                  운동 시작하기
+                </>
               )}
+            </button>
+          </div>
+
+          <div className="mt-8 grid grid-cols-3 gap-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
+              <div className="text-purple-300 text-sm mb-1">총 세션</div>
+              <div className="text-white text-2xl font-bold">
+                {userProfile.totalSessions.toString()}
+              </div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
+              <div className="text-purple-300 text-sm mb-1">총 세트</div>
+              <div className="text-white text-2xl font-bold">
+                {userProfile.totalSets.toString()}
+              </div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
+              <div className="text-purple-300 text-sm mb-1">총 볼륨</div>
+              <div className="text-white text-xl font-bold">
+                {(userProfile.totalVolume.toNumber() / 1000).toFixed(1)}T
+              </div>
             </div>
           </div>
-        );
-      }
-    
-      // 운동 화면
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+
+          {error && (
+            <div className="mt-4 p-4 bg-red-500/20 border border-red-500 rounded-lg text-red-300 text-sm">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
           <div className="bg-black/30 backdrop-blur-sm border-b border-white/10">
             <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
               <button 
