@@ -1,0 +1,20 @@
+[package]
+name = "gym_chain"
+version = "0.1.0"
+description = "웨이트 트레이닝 기록 및 보상 dApp"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "gym_chain"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.32.1"
+anchor-spl = "0.32.1"
